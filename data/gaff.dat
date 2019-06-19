@@ -48,6 +48,7 @@ nf 14.01         0.530               Inner Sp2 N in conjugated systems, identica
 nh 14.01         0.530               Amine N connected one or more aromatic rings 
 no 14.01         0.530               Nitro N  
 o  16.00         0.434               Oxygen with one connected atom
+om 16.00         0.434               Oxygen -1 in carboxylic acid
 oh 16.00         0.465               Oxygen in hydroxyl group
 os 16.00         0.465               Ether and ester oxygen
 ow 16.00         0.465               Oxygen in water 
@@ -439,6 +440,7 @@ c -ne  408.6    1.3929       SOURCE4      47	0.0136
 c -nf  404.8    1.3958       SOURCE4       5	0.0122
 c -no  260.1    1.5400       SOUECE3       1	
 c -o   648.0    1.2140       SOURCE1    3682	0.0165
+c -om  648.0    1.2340       SOURCE1    3682    0.0165
 c -oh  466.4    1.3060       SOURCE1     271	0.0041
 c -os  411.3    1.3430       SOURCE1    1044	0.0171
 c -p2  210.3    1.9000       SOUECE3       1	
@@ -5708,6 +5710,7 @@ MOD4      RE
   hw          0.0000  0.0000             OPLS Jorgensen, JACS,110,(1988),1657
   hx          1.1000  0.0157             Veenstra et al JCC,8,(1992),963
   o           1.6612  0.2100             OPLS
+  om          1.6612  0.2100             OPLS
   oh          1.7210  0.2104             OPLS 
   os          1.6837  0.1700             OPLS ether
   ow          1.7683  0.1520             TIP3P water model

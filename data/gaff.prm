@@ -303,14 +303,16 @@ atom [#7X3r6]([#6X3]=[#8])([#6X3])[#1]  				    n  "sp2 N in amides"
 atom [#7X3r6]([#6X3]=[#8])([#6X3])[#6X4]  				    n  "sp2 N in amides"
 atom [#7X3&H0](=O)=O    						    no "N in nitro group"
 atom [#7X4]             						    n4 "sp3 N"
+atom [ND3]=[*]                            n4 "sp3 N"
 
 // SMARTS rules for oxygens
 
 atom [OX1]              						    o  "sp2 O"
-atom [OX1][#16]              						    o  "sp2 O"
+atom [OX1][#16]              						o  "sp2 O"
+atom [OD1][#6]                                  om "O in O=C-O like in Glutamic acid sidechain"
 atom [OX2]([#6,#7])[#6,#7]            					    os "sp2 O"
-atom [OX2]              						    os "sp3 O in esters and ethers"
-atom [#8X2]              						    os "sp3 O in esters and ethers"
+atom [OX2&H0]              						    os "sp3 O in esters and ethers"
+atom [#8X2&H0]              						os "sp3 O in esters and ethers"
 atom [OX2;R]([#6])[#6] 							    os
 atom [OX2&H0]([#6])[#6] 						    os
 atom [OX2]([#6])[#6] 							    os
@@ -321,7 +323,7 @@ atom [OX2&H0][#16X4]-[#6X4] 						    o
 atom [OX2&H0]([#15X4])[#6] 						    os
 atom [OX2r5]([#15X3][Cl])[#6] 						    os
 atom [OX2&H0]([#16X4])[#6] 						    os
-atom [OX2H]             						    oh "sp3 O in hydroxyl group"
+atom [OX2]([#1])*             						    oh "sp3 O in hydroxyl group"
 atom [OX2]([#1])[#1]							    ow "water"
 atom [OX2&H0;!R][CX3]=[OX1] 						    o  "O in carboxylic group"
 atom [OX2&H0;!R][NX2]=[OX1] 						    o  "O in carboxylic group"
@@ -330,7 +332,7 @@ atom [OX2&H0;!R]([#6X4])([NX3]=[OX1])					    os "O in carboxylic group"
 atom [OX2&H0;!R]([#6X3])([CX3]=[OX1])            			    os "sp2 O"
 atom [OX2]([#6X3]=[OX1])[#6X4] 						    os
 atom [OX2]([#6X3]=[OX1])[#6X3]=[OX1] 					    os
-atom [OX3]              						    os "sp3 O in esters and ethers"
+atom [OX3&H0]              						    os "sp3 O in esters and ethers"
 atom [OX3H]             						    oh "sp3 O in hydroxyl group"
 
 // SMARTS rules for sulfur
