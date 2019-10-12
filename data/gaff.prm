@@ -308,6 +308,7 @@ atom [ND3](=O)(=O)-*    						  no "N in nitro group"
 
 // SMARTS rules for oxygens
 
+atom [OX1]                                          o
 atom [OD1]=[#6]              						o  "O in C=O"
 atom [OD1]=[#7]              						o  "O in N=O"
 atom [OD1]=[#16]                                    o  "O in S=O"
