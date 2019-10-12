@@ -15,6 +15,7 @@
 // must be sorted according to the ELEMENT and COMPLEXITY OF THE TYPERULE!
 //
 // Upadted (2016) by Mohammad Mehdi Ghahremanpour <mohammad.ghahremanpour@icm.uu.se>
+// Updated (2019) by Mohammad Mehdi Ghahremanpour <mohammad.ghahremanpour@yale.edu>
 //
 // Be careful lines do not exceed the maximum length of 150!
 
@@ -68,11 +69,11 @@ atom [#1X1][Ge]								    DU "H on Ge"
 atom [c]								    ca "sp2 C in aromatic ring"
 atom [#6X1]								    c1 "sp C"
 atom [#6X2]								    c1 "sp C"
-atom [#6X2](=*)-*=*							    cg "sp C in conjugated system"
 atom [#6X2](#*)-*=*           	       					    cg "sp C in conjugated system"
 atom [#6X2](#*)-*#*           	       					    cg "sp C in conjugated system"
 atom [#6X2](#[#7])[#6X3]           					    cg "sp C in conjugated system"
 atom [#6X2](#[#6])[#1]        	       					    c1 "sp C"
+atom [#6X2](#[#6X2])(-[#7X3])               c1
 atom [#6X3]								    c2 "sp2 C in aliphatic system"
 atom [#6X3](N)(N)N       						    cz "guanidine carbon"
 atom [#6X3](=[#6X3])([#6X4])[#6X3]					    c2 "sp2 C in aliphatic system"
@@ -289,10 +290,10 @@ atom [nX3;R]([#6])([#6])[#6]   					  na "sp2 N with 3 subst"
 atom [nX3&H;R]         						      na "sp2 N with 3 subst"
 atom [nX3]              						  na "sp2 N with 3 subst"
 atom [nX3]([#6])([#6])[#1]      				  na "sp2 N with 3 subst"
+atom [#7X3]([#6])([#6])[#1]      				  na "sp2 N with 3 subst"
 atom [#7X3r6]([#6])([#6])[#1]   				  n3 "sp3 N"
-atom [#7X3H2;H1]							      nh "Amine Nitrogen"
+atom [#7X3H2]   							      nh "Amine Nitrogen"
 atom [#7X3H2]-[R;a]							      nh "Amine Nitrogen"
-atom [NX3]-[R;a]							      nh "Amine Nitrogen"
 atom [#7X3H2]-[r6;a]							  nh "Amine Nitrogen"
 atom [#7X3]-[CX3]=[O,S] 						  n  "sp2 N in amides"
 atom [#7X3r5]([#6X3]=[#8])([#6X3])[#1]  		  n  "sp2 N in amides"
@@ -339,13 +340,11 @@ atom [OX3H]             						    oh "O in hydroxyl group"
 
 // SMARTS rules for sulfur
 
-atom [SX1]              						    s  ""
-atom [#16X1]              						    s  ""
-atom [#16X1](=[C,O])              					s  ""
+atom [SX1]              						    s  "sp2 sulfur"
+atom [#16X1]              						    s  "sp2 sulfur"
+atom [#16X1](=[C,O])              					s  "sp2 sulfur"
 atom [SX2]              						    ss "sp3 sulphur"
 atom [#16X2]              						    ss "sp3 sulphur"
-atom [SX2]=*            						    s2 "sp2 sulphur"
-atom [SX2]#*            						    s2 "sp2 sulphur"
 atom [SX2H]             						    sh "sp3 S in thiol"
 atom [SX3]              						    s4 "hypervalent S"
 atom [SX3](=*)-*=*      						    sx "conjugated S"
