@@ -7,6 +7,7 @@
 #include <openbabel/obiter.h>
 #include <openbabel/bond.h>
 #include <openbabel/generic.h>
+#include <openbabel/forcefield.h>
 
 #include <iostream>
 #include <string>
@@ -56,6 +57,7 @@ void test_ChemDraw_Basic()
     { "ethanol.cdx", "CCO\t\n" },
     // cyclohexane -> benzene reaction, plus another cyclohexane drawn on its own
     { "molrxnmix.cdx", "C1CCCCC1>>c1ccccc1\t\nC1CCCCC1\t\n" },
+    { "MeCN.cdx", "CC#N\t\n"}
   };
 
   ios_base::openmode imode = ios_base::in | ios_base::binary;
@@ -391,6 +393,110 @@ void test_SMILES_Valence()
   OB_COMPARE(conv.WriteString(&mol, true), "C[H:1]");
 }
 
+//make sure insertion code gets copied (it wasn't)
+void test_insertioncode() 
+{
+  const char* pdb = "ATOM    266  HB2 ASP L  14      -2.604   8.021  19.867  1.00  0.00           H\n\
+ATOM    267  CG  ASP L  14      -2.280   6.992  21.697  1.00 18.10           C\n\
+ATOM    268  OD1 ASP L  14      -1.109   7.431  21.698  1.00 18.97           O\n\
+ATOM    269  OD2 ASP L  14      -2.735   6.263  22.603  1.00 19.18           O\n\
+ATOM    270  N   LYS L  14A     -5.804   6.060  21.469  1.00 20.85           N\n\
+ATOM    271  H   LYS L  14A     -5.589   5.759  20.497  1.00  0.00           H\n\
+ATOM    272  CA  LYS L  14A     -6.654   5.209  22.296  1.00 22.86           C\n\
+ATOM    273  HA  LYS L  14A     -7.392   5.923  22.662  1.00  0.00           H\n\
+ATOM    274  C   LYS L  14A     -6.108   4.607  23.591  1.00 21.70           C\n\
+ATOM    275  O   LYS L  14A     -6.892   4.228  24.455  1.00 21.72           O\n";
+
+    OBConversion conv;
+    OB_ASSERT(conv.SetInAndOutFormats("pdb", "pdb"));
+    OBMol mol;
+    conv.ReadString(&mol, pdb);
+    OBMol mol2;
+    mol2 = mol;
+    char i = mol2.GetResidue(1)->GetInsertionCode();
+    OB_COMPARE(i, 'A');
+}
+
+//make sure icode is read by pdbqt
+void test_insertioncode_pdbqt() 
+{
+  const char* pdb = "ATOM    266  HB2 ASP L  14      -2.604   8.021  19.867  1.00  0.00           H\n\
+ATOM    267  CG  ASP L  14      -2.280   6.992  21.697  1.00 18.10           C\n\
+ATOM    268  OD1 ASP L  14      -1.109   7.431  21.698  1.00 18.97           O\n\
+ATOM    269  OD2 ASP L  14      -2.735   6.263  22.603  1.00 19.18           O\n\
+ATOM    270  N   LYS L  14A     -5.804   6.060  21.469  1.00 20.85           N\n\
+ATOM    271  H   LYS L  14A     -5.589   5.759  20.497  1.00  0.00           H\n\
+ATOM    272  CA  LYS L  14A     -6.654   5.209  22.296  1.00 22.86           C\n\
+ATOM    273  HA  LYS L  14A     -7.392   5.923  22.662  1.00  0.00           H\n\
+ATOM    274  C   LYS L  14A     -6.108   4.607  23.591  1.00 21.70           C\n\
+ATOM    275  O   LYS L  14A     -6.892   4.228  24.455  1.00 21.72           O\n";
+
+    OBConversion conv;
+    OB_ASSERT(conv.SetInAndOutFormats("pdbqt", "pdbqt"));
+    OBMol mol;
+    conv.ReadString(&mol, pdb);
+    OBMol mol2;
+    mol2 = mol;
+    char i = mol2.GetResidue(1)->GetInsertionCode();
+    OB_COMPARE(i, 'A');
+}
+
+// https://github.com/openbabel/openbabel/issues/1794
+void test_github_issue_1794()
+{
+  OBMol mol;
+  OBConversion conv;
+  conv.SetInFormat("smi");
+  conv.ReadString(&mol, "CC[2H]");
+
+  OBForceField* pFF = OBForceField::FindForceField("UFF");
+  OB_REQUIRE(pFF);
+
+  OB_ASSERT(pFF->Setup(mol));
+}
+
+void test_github_issue_2111_impl(const std::string &smiles)
+{
+  OBMol mol;
+  OBConversion conv;
+  conv.SetInAndOutFormats("smi", "inchi");
+
+  conv.ReadString(&mol, smiles);
+  mol.DeleteHydrogens();
+  conv.WriteString(&mol);
+}
+
+// https://github.com/openbabel/openbabel/issues/2111
+void test_github_issue_2111()
+{
+  test_github_issue_2111_impl("[H][C@@H](I)F"); // tetrahedral with 2 implicit refs
+  test_github_issue_2111_impl("[H]/N=C/F"); // cis/trans with 2 implicit refs on the left
+  test_github_issue_2111_impl("F/N=C/[H]"); // cis/trans with 2 implicit refs on the right
+
+  //
+  // Tetrahedral
+  //
+
+  // example from bug report
+  test_github_issue_2111_impl("[C@@H]12C[C@H](OCC3=CC=CC=C3)[C@@H](COCC3=CC=CC=C3)[C@]1([H])O2");
+
+  // implicit ref in all positions
+  test_github_issue_2111_impl("[H][C@](C)(F)I");
+  test_github_issue_2111_impl("C[C@]([H])(F)I");
+  test_github_issue_2111_impl("C[C@](F)([H])I");
+  test_github_issue_2111_impl("C[C@](F)(I)[H]");
+
+  //
+  // Cis/Trans
+  //
+
+  // implicit ref in all positions
+  test_github_issue_2111_impl("[H]/N(C)=C/F");
+  test_github_issue_2111_impl("C/N([H])=C/F");
+  test_github_issue_2111_impl("F/N=C(/[H])C");
+  test_github_issue_2111_impl("F/N=C(/C)[H]");
+}
+
 int regressionstest(int argc, char* argv[])
 {
   int defaultchoice = 1;
@@ -441,7 +547,19 @@ int regressionstest(int argc, char* argv[])
   case 240:
     test_Fix1912_PDBReading();
     break;
-    //case N:
+  case 241:
+    test_insertioncode();
+    break;
+  case 242:
+    test_insertioncode_pdbqt();
+    break;
+  case 1794:
+    test_github_issue_1794();
+    break;
+  case 2111:
+    test_github_issue_2111();
+    break;
+  //case N:
   //  YOUR_TEST_HERE();
   //  Remember to update CMakeLists.txt with the number of your test
   //  break;

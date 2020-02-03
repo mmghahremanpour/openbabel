@@ -3,6 +3,7 @@ Copyright (C) 2005-2007 by Craig A. James, eMolecules Inc.
 Some portions Copyright (C) 1998-2001 by OpenEye Scientific Software, Inc.
 Some portions Copyright (C) 2001-2008 by Geoffrey R. Hutchison
 Some portions Copyright (C) 2004 by Chris Morley
+Some portions Copyright (C) 2019 by NextMove Software.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -154,7 +155,7 @@ namespace OpenBabel {
         "  I  Inchified SMILES\n"
         "  h  Output explicit hydrogens as such\n"
         "  i  Do not include isotopic or chiral markings\n"
-        "  k  Create Kekule SMILES (the default is aromatic SMILES)\n"
+        "  k  Create Kekule SMILES instead of aromatic\n"
         "  n  No molecule name\n"
         "  r  Radicals lower case eg ethyl is Cc\n"
         "  t  Molecule name only\n"
@@ -165,8 +166,9 @@ namespace OpenBabel {
         "     This gives canonical labels 1,2,3,4 to atoms 4,2,1,3 respectively,\n"
         "     so that atom 4 will be visited first and the remaining atoms\n"
         "     visited in a depth-first manner following the lowest canonical labels.\n"
-        "  O  Store the SMILES atom order as a space-separated string in an\n"
-        "     OBPairData with the name 'SMILES Atom Order'\n"
+        "  O  Store the SMILES atom order as a space-separated string\n"
+        "     The string is stored as an OBPairData wth the name\n"
+        "     'SMILES Atom Order'.\n"
         "  F  <atom numbers> Generate SMILES for a fragment\n"
         "     The atom numbers should be specified like \"1 2 4 7\".\n"
         "  R  Do not reuse bond closure symbols\n"
@@ -174,7 +176,7 @@ namespace OpenBabel {
         "     This atom will be used to begin the SMILES string.\n"
         "  l  <atomno> Specify the last atom\n"
         "     The output will be rearranged so that any additional\n"
-        "     SMILES added to the end will be attached to this atom.\n\n"
+        "     SMILES added to the end will be attached to this atom.\n"
         "  T  <max seconds> Specify the canonicalization timeout\n"
         "     Canonicalization can take a while for symmetric molecules and a\n"
         "     timeout is used. The default is 5 seconds.\n\n"
@@ -1675,6 +1677,23 @@ namespace OpenBabel {
           return false;
         break;
 
+      case '#':
+        // Only support three digits for this extension
+        if ((_ptr[1] == '1' || _ptr[1] == '2') &&
+            (_ptr[2] >= '0' && _ptr[2] <= '9') &&
+            (_ptr[3] >= '0' && _ptr[3] <= '9')) {
+          element = (_ptr[1]-'0')*100 + (_ptr[2]-'0')*10 + (_ptr[3]-'0');
+          if (element > 255) {
+            std::string err = "Element number must be <= 255)";
+            obErrorLog.ThrowError(__FUNCTION__,
+              err, obError);
+            return false;
+          }
+          _ptr += 3;
+          break;
+        }
+        /* fall through to default */
+
       default:
         {
           std::string err;
@@ -2777,8 +2796,8 @@ namespace OpenBabel {
       if (iso >= 10000) // max 4 characters
         obErrorLog.ThrowError(__FUNCTION__, "Isotope value larger than 9999. Ignoring value.", obWarning);
       else {
-        char iso[5]; // 4 characters plus null
-        sprintf(iso, "%d", atom->GetIsotope());
+        char iso[8]; // 7 characters plus null
+        snprintf(iso, 8, "%u", atom->GetIsotope());
         buffer += iso;
       }
     }
@@ -2788,8 +2807,13 @@ namespace OpenBabel {
       if (atom->GetAtomicNum() == OBElements::Hydrogen && options.smarts)
         buffer += "#1";
       else {
-        const char* symbol = OBElements::GetSymbol(atom->GetAtomicNum());
-        if (!options.kekulesmi && atom->IsAromatic()) { // aromatic atom
+        unsigned int elem = atom->GetAtomicNum();
+        const char* symbol = OBElements::GetSymbol(elem);
+        if (*symbol == '\0') {
+          char atomnum[8];  // '#' plus 3 digits plus null
+          snprintf(atomnum, 8, "#%u", elem);
+          buffer += atomnum;
+        } else if (!options.kekulesmi && atom->IsAromatic()) { // aromatic atom
           buffer += symbol[0] + ('a' - 'A');
           if (symbol[1])
             buffer += symbol[1];

@@ -15,12 +15,13 @@ add_definitions(-DFORMATDIR="${FORMATDIR}/")
 
 ################ Add new tests here
 set (cpptests
-     automorphism builder canonconsistent canonfragment canonstable carspacegroup cifspacegroup
-     cistrans conversion graphsym gzip
-     implicitH lssr isomorphism multicml regressions rotor shuffle smiles spectrophore
+     alias automorphism builder canonconsistent canonfragment canonstable carspacegroup cifspacegroup
+     cistrans conversion graphsym gzip addh
+     implicitH lssr isomorphism multicml periodic regressions rotor shuffle smiles spectrophore
      squareplanar stereo stereoperception tautomer tetrahedral
      tetranonplanar tetraplanar uniqueid
     )
+set (alias_parts 1)
 set (automorphism_parts 1 2 3 4 5 6 7 8 9 10)
 set (builder_parts 1 2 3 4 5)
 set (canonconsistent_parts  1 2 3)
@@ -32,11 +33,13 @@ set (cistrans_parts 1 2 3 4 5 6 7 8 9)
 set (conversion_parts 1)
 set (graphsym_parts 1 2 3 4 5)
 set (gzip_parts 1)
+set (addh_parts 1)
 set (implicitH_parts 1)
 set (lssr_parts 1 2 3 4 5)
 set (isomorphism_parts 1 2 3 4 5 6 7 8 9)
 set (multicml_parts 1)
-set (regressions_parts 1 221 222 223 224 225 226 227 228 240)
+set (periodic_parts 1 2 3 4)
+set (regressions_parts 1 221 222 223 224 225 226 227 228 240 241 242 1794 2111)
 set (rotor_parts 1 2 3 4)
 set (shuffle_parts 1 2 3 4 5)
 set (smiles_parts 1 2 3)
@@ -56,6 +59,12 @@ if (EIGEN2_FOUND OR EIGEN3_FOUND)
   set (align_parts 1 2 3 4 5)
 endif ()
 
+if (WITH_MAEPARSER)
+    set(cpptests ${cpptests}
+        maereader)
+    set (maereader_parts 1 2)
+endif ()
+
 set(origtests
     aromatest atom bond cansmi charge_mmff94 charge_gasteiger conversion
     datatest ffgaff ffghemical ffmmff94 ffuff formalcharge format formula
@@ -64,7 +73,7 @@ set(origtests
     unitcell
     )
 set (atom_parts 1 2 3 4)
-set (ffmmff94_parts 1 2)
+set (ffmmff94_parts 1 2 3 4 5 6)
 set (math_parts 1 2 3 4)
 set (pdbreadfile_parts 1 2 3 4)
 
@@ -217,7 +226,7 @@ if(NOT MINGW AND NOT CYGWIN)
   include(UsePythonTest)
   if(PYTHON_EXECUTABLE)
     set(pytests
-        babel sym smartssym fastsearch unique kekule pdbformat RInChI)
+        babel sym smartssym fastsearch distgeom unique kekule pdbformat roundtrip RInChI)
     foreach(pytest ${pytests})
     SET_SOURCE_FILES_PROPERTIES(test${pytest}.py PROPERTIES
       PYTHONPATH "${CMAKE_SOURCE_DIR}/scripts/python:${CMAKE_BINARY_DIR}/lib${LIB_SUFFIX}"
@@ -268,7 +277,7 @@ endif (PYTHON_BINDINGS)
 function(add_depict_test testname obfile image_file ref_image)
   set(depict_dir ${CMAKE_BINARY_DIR}/depict_test)
   add_test(NAME test_${testname} COMMAND ${CMAKE_SOURCE_DIR}/test/test_depiction.sh
-      ${CMAKE_BINARY_DIR}/bin/babel ${ImageMagick_convert_EXECUTABLE}
+      ${CMAKE_BINARY_DIR}/bin/obabel ${ImageMagick_convert_EXECUTABLE}
       ${ImageMagick_compare_EXECUTABLE} ${obfile} ${depict_dir}
       ${image_file} ${ref_image})
   set_tests_properties(test_${testname} PROPERTIES

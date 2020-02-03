@@ -45,12 +45,11 @@ namespace OpenBabel
 {
 
   extern bool SwabInt;
-  extern OBPhModel  phmodel;
-  extern OBAromaticTyper  aromtyper;
-  extern OBAtomTyper      atomtyper;
-  extern OBBondTyper      bondtyper;
-
-
+  extern THREAD_LOCAL OBPhModel  phmodel;
+  extern THREAD_LOCAL OBAromaticTyper  aromtyper;
+  extern THREAD_LOCAL OBAtomTyper      atomtyper;
+  extern THREAD_LOCAL OBBondTyper      bondtyper;
+  
   /** \class OBMol mol.h <openbabel/mol.h>
       \brief Molecule Class
 
@@ -214,10 +213,10 @@ namespace OpenBabel
 
   double OBMol::GetTorsion(int a,int b,int c,int d)
   {
-    return(CalcTorsionAngle(((OBAtom*)_vatom[a-1])->GetVector(),
-                            ((OBAtom*)_vatom[b-1])->GetVector(),
-                            ((OBAtom*)_vatom[c-1])->GetVector(),
-                            ((OBAtom*)_vatom[d-1])->GetVector()));
+    return(GetTorsion((OBAtom*)_vatom[a-1],
+                      (OBAtom*)_vatom[b-1],
+                      (OBAtom*)_vatom[c-1],
+                      (OBAtom*)_vatom[d-1]));
   }
 
   void OBMol::SetTorsion(OBAtom *a,OBAtom *b,OBAtom *c, OBAtom *d, double ang)
@@ -243,6 +242,7 @@ namespace OpenBabel
     double x,y,z,mag,rotang,sn,cs,t,tx,ty,tz;
 
     //calculate the torsion angle
+    // TODO: fix this calculation for periodic systems
     radang = CalcTorsionAngle(a->GetVector(),
                               b->GetVector(),
                               c->GetVector(),
@@ -308,10 +308,30 @@ namespace OpenBabel
 
   double OBMol::GetTorsion(OBAtom *a,OBAtom *b,OBAtom *c,OBAtom *d)
   {
-    return(CalcTorsionAngle(a->GetVector(),
-                            b->GetVector(),
-                            c->GetVector(),
-                            d->GetVector()));
+    if (!IsPeriodic())
+      {
+        return(CalcTorsionAngle(a->GetVector(),
+                                b->GetVector(),
+                                c->GetVector(),
+                                d->GetVector()));
+      }
+    else
+      {
+        vector3 v1, v2, v3, v4;
+        // Wrap the atomic positions in a continuous chain that makes sense based on the unit cell
+        // Start by extracting the absolute Cartesian coordinates
+        v1 = a->GetVector();
+        v2 = b->GetVector();
+        v3 = c->GetVector();
+        v4 = d->GetVector();
+        // Then redefine the positions based on proximity to the previous atom
+        // to build a continuous chain of expanded Cartesian coordinates
+        OBUnitCell *unitCell = (OBUnitCell * ) GetData(OBGenericDataType::UnitCell);
+        v2 = unitCell->UnwrapCartesianNear(v2, v1);
+        v3 = unitCell->UnwrapCartesianNear(v3, v2);
+        v4 = unitCell->UnwrapCartesianNear(v4, v3);
+        return(CalcTorsionAngle(v1, v2, v3, v4));
+      }
   }
 
   void OBMol::ContigFragList(std::vector<std::vector<int> >&cfl)
@@ -798,17 +818,11 @@ namespace OpenBabel
     return(count);
   }
 
-  unsigned int OBMol::NumRotors(bool includeRingBonds)
+  unsigned int OBMol::NumRotors(bool sampleRingBonds)
   {
-    OBBond *bond;
-    vector<OBBond*>::iterator i;
-
-    unsigned int count = 0;
-    for (bond = BeginBond(i);bond;bond = NextBond(i)) {
-      if (bond->IsRotor(includeRingBonds))
-        count++;
-    }
-    return(count);
+    OBRotorList rl;
+    rl.FindRotors(*this, sampleRingBonds);
+    return rl.Size();
   }
 
   //! Returns a pointer to the atom after a safety check
@@ -1217,7 +1231,7 @@ namespace OpenBabel
   //Residue information are copied, MM 4-27-01
   //All OBGenericData incl OBRotameterList is copied, CM 2006
   //Zeros all flags except OB_TCHARGE_MOL, OB_PCHARGE_MOL, OB_HYBRID_MOL
-  //OB_TSPIN_MOL, OB_AROMATIC_MOL and OB_PATTERN_STRUCTURE which are copied
+  //OB_TSPIN_MOL, OB_AROMATIC_MOL, OB_PERIODIC_MOL, OB_CHAINS_MOL and OB_PATTERN_STRUCTURE which are copied
   {
     if (this == &source)
       return *this;
@@ -1257,12 +1271,14 @@ namespace OpenBabel
       this->SetFlag(OB_TCHARGE_MOL);
     if (src.HasFlag(OB_PCHARGE_MOL))
       this->SetFlag(OB_PCHARGE_MOL);
+    if (src.HasFlag(OB_PERIODIC_MOL))
+      this->SetFlag(OB_PERIODIC_MOL);
     if (src.HasFlag(OB_HYBRID_MOL))
       this->SetFlag(OB_HYBRID_MOL);
     if (src.HasFlag(OB_AROMATIC_MOL))
       this->SetFlag(OB_AROMATIC_MOL);
-
-
+    if (src.HasFlag(OB_CHAINS_MOL))
+      this->SetFlag(OB_CHAINS_MOL);
     //this->_flags = src.GetFlags(); //Copy all flags. Perhaps too drastic a change
 
 
@@ -1280,10 +1296,7 @@ namespace OpenBabel
           {
             res = NewResidue();
             src_res = src.GetResidue(k);
-            res->SetName(src_res->GetName());
-            res->SetNum(src_res->GetNumString());
-            res->SetChain(src_res->GetChain());
-            res->SetChainNum(src_res->GetChainNum());
+            *res = *src_res; //does not copy atoms
             for (src_atom=src_res->BeginAtom(ii) ; src_atom ; src_atom=src_res->NextAtom(ii))
               {
                 atom = GetAtom(src_atom->GetIdx());
@@ -1413,6 +1426,9 @@ namespace OpenBabel
     // We should do something to update the src coordinates if they're not 3D
     if(src.GetDimension()<_dimension)
       _dimension = src.GetDimension();
+    // TODO: Periodicity is similarly weird (e.g., adding nonperiodic data to
+    // a crystal, or two incompatible lattice parameters).  For now, just assume
+    // we intend to keep the lattice of the source (no updates necessary)
 
     EndModify();
 
@@ -1510,9 +1526,9 @@ namespace OpenBabel
     if (_mod)
       return;
 
-    // wipe all but whether it has aromaticity perceived or is a reaction
+    // wipe all but whether it has aromaticity perceived, is a reaction, or has periodic boundaries enabled
     if (nukePerceivedData)
-      _flags = _flags & (OB_AROMATIC_MOL|OB_REACTION_MOL);
+      _flags = _flags & (OB_AROMATIC_MOL|OB_REACTION_MOL|OB_PERIODIC_MOL);
 
     _c = NULL;
 
@@ -2129,15 +2145,13 @@ namespace OpenBabel
                             "Ran OpenBabel::AddHydrogens -- nonpolar only", obAuditMsg);
 
     // Make sure we have conformers (PR#1665519)
-    if (!_vconf.empty() && !Empty() && !_mod)
-    {
-      if(!_c) _c = _vconf[0];
+    if (!_vconf.empty() && !Empty()) {
       OBAtom *atom;
       vector<OBAtom*>::iterator i;
-      for (atom = BeginAtom(i); atom; atom = NextAtom(i))
-      {
-        atom->SetVector();
-      }
+      for (atom = BeginAtom(i);atom;atom = NextAtom(i))
+        {
+          atom->SetVector();
+        }
     }
 
     SetHydrogensAdded(); // This must come after EndModify() as EndModify() wipes the flags
@@ -2200,6 +2214,7 @@ namespace OpenBabel
         double bondlen = hbrad + CorrectedBondRad(atom->GetAtomicNum(), atom->GetHyb());
         for (m = 0;m < k->second;++m)
           {
+            int badh = 0;
             for (n = 0;n < NumConformers();++n)
               {
                 SetConformer(n);
@@ -2218,47 +2233,50 @@ namespace OpenBabel
                       _c[(NumAtoms())*3+1] = 0.0;
                       _c[(NumAtoms())*3+2] = 0.0;
                       obErrorLog.ThrowError(__FUNCTION__,
-                                            "Ran OpenBabel::AddHydrogens -- non-finite hydrogens found.",
+                                            "Ran OpenBabel::AddHydrogens -- no reasonable bond geometry for desired hydrogen.",
                                             obAuditMsg);
+                      badh++;
                     }
                   }
                 else
                   memset((char*)&_c[NumAtoms()*3],'\0',sizeof(double)*3);
               }
-            h = NewAtom();
-            h->SetType("H");
-            h->SetAtomicNum(1);
-
-            // copy parent atom residue to added hydrogen     REG 6/30/02
-
-            if (atom->HasResidue())
+            if(badh == 0 || badh < NumConformers()) 
               {
-
-                string aname;
-
-                aname = "H";
-
                 // Add the new H atom to the appropriate residue list
-                atom->GetResidue()->AddAtom(h);
+                //but avoid doing perception by checking for existence of residue
+                //just in case perception is trigger, make sure GetResidue is called
+                //before adding the hydrogen to the molecule
+                OBResidue *res = atom->HasResidue() ? atom->GetResidue() : NULL;
+                h = NewAtom();
+                h->SetType("H");
+                h->SetAtomicNum(1);
+                string aname = "H";
 
-                // Give the new atom a pointer back to the residue
-                h->SetResidue(atom->GetResidue());
+                if(res) 
+                {
+                  res->AddAtom(h);
+                  res->SetAtomID(h,aname);
+                  
+                  //hydrogen should inherit hetatm status of heteroatom (default is false)
+                  if(res->IsHetAtom(atom)) 
+                  {
+                      res->SetHetAtom(h, true);
+                  }
+                }
 
-                atom->GetResidue()->SetAtomID(h,aname);
-
+                int bondFlags = 0;
+                AddBond(atom->GetIdx(),h->GetIdx(),1, bondFlags);
+                h->SetCoordPtr(&_c);
+                OpenBabel::ImplicitRefToStereo(*this, atom->GetId(), h->GetId());
               }
-
-            int bondFlags = 0;
-            AddBond(atom->GetIdx(),h->GetIdx(),1, bondFlags);
-            h->SetCoordPtr(&_c);
-            OpenBabel::ImplicitRefToStereo(*this, atom->GetId(), h->GetId());
           }
       }
 
     DecrementMod();
 
     //reset atom type and partial charge flags
-    _flags &= (~(OB_PCHARGE_MOL|OB_ATOMTYPES_MOL|OB_SSSR_MOL|OB_AROMATIC_MOL));
+    _flags &= (~(OB_PCHARGE_MOL|OB_ATOMTYPES_MOL|OB_SSSR_MOL|OB_AROMATIC_MOL|OB_HYBRID_MOL));
 
     return(true);
   }
@@ -2920,6 +2938,21 @@ namespace OpenBabel
     return true;
   }
 
+  //check that unreasonable bonds aren't being added
+  static bool validAdditionalBond(OBAtom *a, OBAtom *n) 
+  {
+    if(a->GetExplicitValence() == 5 && a->GetAtomicNum() == 15) 
+    {
+      //only allow octhedral bonding for F and Cl
+      if(n->GetAtomicNum() == 9 || n->GetAtomicNum() == 17)
+        return true;
+      else
+        return false;
+    }
+    //other things to check?
+    return true;
+  }
+
   /*! This method adds single bonds between all atoms
     closer than their combined atomic covalent radii,
     then "cleans up" making sure bonded atoms are not
@@ -2933,8 +2966,14 @@ namespace OpenBabel
       return;
     if (_dimension != 3) return; // not useful on non-3D structures
 
-    obErrorLog.ThrowError(__FUNCTION__,
-                          "Ran OpenBabel::ConnectTheDots", obAuditMsg);
+    if (IsPeriodic())
+      obErrorLog.ThrowError(__FUNCTION__,
+                            "Ran OpenBabel::ConnectTheDots -- using periodic boundary conditions",
+                            obAuditMsg);
+    else
+      obErrorLog.ThrowError(__FUNCTION__,
+                            "Ran OpenBabel::ConnectTheDots", obAuditMsg);
+
 
     int j,k,max;
     double maxrad = 0;
@@ -2951,10 +2990,16 @@ namespace OpenBabel
 
     for (j = 0, atom = BeginAtom(i) ; atom ; atom = NextAtom(i), ++j)
       {
+        bondCount.push_back(atom->GetExplicitDegree());
+        //don't consider atoms with a full valance already
+        //this is both for correctness (trust existing bonds) and performance
+        if(atom->GetExplicitValence() >= OBElements::GetMaxBonds(atom->GetAtomicNum()))
+          continue;        
+        if(atom->GetAtomicNum() == 7 && atom->GetFormalCharge() == 0 && atom->GetExplicitValence() >= 3)
+          continue; 
         (atom->GetVector()).Get(&c[j*3]);
         pair<OBAtom*,double> entry(atom, atom->GetVector().z());
         zsortedAtoms.push_back(entry);
-        bondCount.push_back(atom->GetExplicitDegree());
       }
     sort(zsortedAtoms.begin(), zsortedAtoms.end(), SortAtomZ);
 
@@ -2970,9 +3015,10 @@ namespace OpenBabel
 
     int idx1, idx2;
     double d2,cutoff,zd;
+    vector3 atom1, atom2, wrapped_coords;  // Only used for periodic coords
     for (j = 0 ; j < max ; ++j)
       {
-    	double maxcutoff = SQUARE(rad[j]+maxrad+0.45);
+        double maxcutoff = SQUARE(rad[j]+maxrad+0.45);
         idx1 = zsorted[j];
         for (k = j + 1 ; k < max ; k++ )
           {
@@ -2981,20 +3027,33 @@ namespace OpenBabel
             // bonded if closer than elemental Rcov + tolerance
             cutoff = SQUARE(rad[j] + rad[k] + 0.45);
 
-            zd  = SQUARE(c[idx1*3+2] - c[idx2*3+2]);
-            // bigger than max cutoff, which is determined using largest radius,
-            // not the radius of k (which might be small, ie H, and cause an early  termination)
-            // since we sort by z, anything beyond k will also fail
-            if (zd > maxcutoff )
-              break;
+            // Use minimum image convention if the unit cell is periodic
+            // Otherwise, use a simpler (faster) distance calculation based on raw coordinates
+            if (IsPeriodic())
+              {
+                atom1 = vector3(c[idx1*3], c[idx1*3+1], c[idx1*3+2]);
+                atom2 = vector3(c[idx2*3], c[idx2*3+1], c[idx2*3+2]);
+                OBUnitCell *unitCell = (OBUnitCell * ) GetData(OBGenericDataType::UnitCell);
+                wrapped_coords = unitCell->MinimumImageCartesian(atom1 - atom2);
+                d2 = wrapped_coords.length_2();
+              }
+            else
+              {
+                zd  = SQUARE(c[idx1*3+2] - c[idx2*3+2]);
+                // bigger than max cutoff, which is determined using largest radius,
+                // not the radius of k (which might be small, ie H, and cause an early  termination)
+                // since we sort by z, anything beyond k will also fail
+                if (zd > maxcutoff )
+                  break;
 
-            d2  = SQUARE(c[idx1*3]   - c[idx2*3]);
-            if (d2 > cutoff)
-              continue; // x's bigger than cutoff
-            d2 += SQUARE(c[idx1*3+1] - c[idx2*3+1]);
-            if (d2 > cutoff)
-              continue; // x^2 + y^2 bigger than cutoff
-            d2 += zd;
+                d2  = SQUARE(c[idx1*3]   - c[idx2*3]);
+                if (d2 > cutoff)
+                  continue; // x's bigger than cutoff
+                d2 += SQUARE(c[idx1*3+1] - c[idx2*3+1]);
+                if (d2 > cutoff)
+                  continue; // x^2 + y^2 bigger than cutoff
+                d2 += zd;
+              }
 
             if (d2 > cutoff)
               continue;
@@ -3007,6 +3066,9 @@ namespace OpenBabel
             if (atom->IsConnected(nbr))
               continue;
 
+            if (!validAdditionalBond(atom,nbr) || !validAdditionalBond(nbr, atom))
+              continue;
+              
             AddBond(idx1+1,idx2+1,1);
           }
       }
@@ -3317,21 +3379,13 @@ namespace OpenBabel
     }
 
     // Quick pass.. eliminate inter-ring sulfur atom multiple bonds
-    for (atom = BeginAtom(i); atom; atom = NextAtom(i)) {
-      // Don't build multiple bonds to ring sulfurs
-      //  except thiopyrylium
-      if (atom->IsInRing() && atom->GetAtomicNum() == 16) {
-        if (_totalCharge > 1 && atom->GetFormalCharge() == 0)
-          atom->SetFormalCharge(+1);
-        else {
-          // remove any ring bonds with multiple bond order
-          FOR_BONDS_OF_ATOM(bond, &*atom) {
-            if (bond->IsInRing() && bond->GetBondOrder() > 1)
-              bond->SetBondOrder(1);
-          }
-        }
-      }
-    }
+    // dkoes - I have removed this code - if double bonds are set,
+    // we should trust them.  See pdb_ligands_sdf/4iph_1fj.sdf for
+    // a case where the charge isn't set, but we break the molecule
+    // if we remove the double bond.  Also, the previous code was
+    // fragile - relying on the total mol charge being set.  If we
+    // are going to do anything, we should "perceive" a formal charge
+    // in the case of a ring sulfur with a double bond (thiopyrylium)
 
     // Pass 6: Assign remaining bond types, ordered by atom electronegativity
     vector<pair<OBAtom*,double> > sortedAtoms;
@@ -4039,6 +4093,13 @@ namespace OpenBabel
     bool bonds_specified = excludebonds != (OBBitVec*)0;
 
     newmol.SetDimension(GetDimension());
+
+    // If the parent is set to periodic, then also apply boundary conditions to the fragments
+    if (IsPeriodic()) {
+      OBUnitCell* parent_uc = (OBUnitCell*)GetData(OBGenericDataType::UnitCell);
+      newmol.SetData(parent_uc->Clone(NULL));
+      newmol.SetPeriodicMol();
+    }
     // If the parent had aromaticity perceived, then retain that for the fragment
     newmol.SetFlag(_flags & OB_AROMATIC_MOL);
     // The fragment will preserve the "chains perceived" flag of the parent
@@ -4069,10 +4130,7 @@ namespace OpenBabel
         OBResidue *newres;
         if (mit == ResidueMap.end()) {
           newres = newmol.NewResidue();
-          newres->SetName(res->GetName());
-          newres->SetNum(res->GetNumString());
-          newres->SetChain(res->GetChain());
-          newres->SetChainNum(res->GetChainNum());
+          *newres = *res;
           ResidueMap[res] = newres;
         } else {
           newres = mit->second;

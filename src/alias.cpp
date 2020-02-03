@@ -151,9 +151,11 @@ bool AliasData::FromNameLookup(OBMol& mol, const unsigned int atomindex)
   OBAtom* firstAttachAtom = XxAtom->BeginNbrAtom(bi);
   unsigned mainAttachIdx = firstAttachAtom ? firstAttachAtom->GetIdx() : 0;
   unsigned int firstAttachFlags = 0;
-  if (firstAttachAtom)
+  unsigned int firstAttachOrder = 1;
+  if (firstAttachAtom) {
     firstAttachFlags = mol.GetBond(XxAtom, firstAttachAtom)->GetFlags();
-
+    firstAttachOrder = mol.GetBond(XxAtom, firstAttachAtom)->GetBondOrder();
+  }
   //++Make list of other attachments* of XxAtom
   // (Added later so that the existing bonding of the XXAtom are retained)
   vector<pair<OBAtom*, unsigned> > otherAttachments;
@@ -182,8 +184,9 @@ bool AliasData::FromNameLookup(OBMol& mol, const unsigned int atomindex)
     builder.Build(obFrag);
     obFrag.DeleteAtom(obFrag.GetAtom(1));//remove dummy atom
     mol += obFrag; //Combine with main molecule
-    if(mainAttachIdx)
-      builder.Connect(mol, mainAttachIdx, newFragIdx);
+    if(mainAttachIdx) {
+      builder.Connect(mol, mainAttachIdx, newFragIdx,XxAtom->GetVector(),firstAttachOrder);
+    }
   }
   else // 0D, 2D
   {
@@ -354,6 +357,7 @@ bool AliasData::AddAliases(OBMol* pmol)
         for(unsigned iatom=1; iatom<mlist[imatch].size();++iatom)//each atom in match
         {
           int idx = mlist[imatch][iatom];
+
           if(AllExAtoms.count(idx))
           {
             //atom already appears in an alias so abandon this (smaller) alias
@@ -363,9 +367,14 @@ bool AliasData::AddAliases(OBMol* pmol)
           }
           else
           {
-            AllExAtoms.insert(idx);
-            int id  =(pmol->GetAtom(idx))->GetId();
-            ad->AddExpandedAtom(id);
+            OBAtom* a = pmol->GetAtom(idx);
+            // atom might not be present in original molecule, because SMARTS are all with hydrogens added
+            // original molecule might lack them
+            if (a != NULL) {
+              AllExAtoms.insert(idx);
+              int id  = a->GetId();
+              ad->AddExpandedAtom(id);
+            }
           }
         }
         if(ad)
