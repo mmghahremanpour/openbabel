@@ -727,7 +727,8 @@ namespace OpenBabel
             }
         else if(strstr(buffer,"Total atomic charges") != NULL ||
                 strstr(buffer,"Mulliken atomic charges") != NULL ||
-                strstr(buffer,"Mulliken charges:") != NULL)
+                strstr(buffer,"Mulliken charges:") != NULL || 
+                strstr(buffer, "Mulliken charges and spin densities") != NULL)
           {
             hasPartialCharges = true;
             chargeModel = "Mulliken";
