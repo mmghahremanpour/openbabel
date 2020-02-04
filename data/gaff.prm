@@ -338,6 +338,7 @@ atom [OX2]([#6X3]=[OX1])[#6X4] 						os "O in esters and ethers"
 atom [OX2]([#6X3]=[OX1])[#6X3]=[OX1] 				os "O in esters and ethers"
 atom [OX3&H0]              						    os "O in esters and ethers"
 atom [OX3H]             						    oh "O in hydroxyl group"
+atom [OD1]=[ND3]=[OD1]     						    on "N in nitro group"
 
 // SMARTS rules for sulfur
 
